@@ -32,3 +32,23 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 async def home(request: Request):
     videos = supabase.storage.from_(SUPABASE_BUCKET).list()
     return templates.TemplateResponse('home.html', {'request': request, 'videos': videos})
+
+@app.get('/videos/{video_name}')
+async def get_video(video_name: str):
+    video_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(video_name)
+
+    if not video_url:
+        return{'error': 'video not found'}
+
+    async def video_stream():
+        async with httpx.AsyncClient() as client:
+            async with client.stream('GET', video_url, headers={'Range': 'bytes=0'}, timeout=None) as response:
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+
+    return StreamingResponse(video_stream(), media_type='video/mp4')
+
+@app.get('/watch/{video_name}', response_class=HTMLResponse)
+async def watch_video(request: Request, video_name: str):
+    title = video_name.rsplit('.',1)[0].replace('_','')
+    return templates.TemplateResponse('watch.html', {'request': request, 'video_name': video_name, 'title': title})
