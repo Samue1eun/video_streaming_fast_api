@@ -52,3 +52,24 @@ async def get_video(video_name: str):
 async def watch_video(request: Request, video_name: str):
     title = video_name.rsplit('.',1)[0].replace('_','')
     return templates.TemplateResponse('watch.html', {'request': request, 'video_name': video_name, 'title': title})
+
+@app.get('/upload', response_class=HTMLResponse)
+async def upload_form(request:Request):
+    return templates.TemplateResponse('upload.html', {'request': request})
+
+@app.post('/upload')
+async def upload_video(request: Request, title: str = File(...), video_file: UploadFile = File(...)):
+    cotents = await video_file.read()
+
+    file_extension = video_file.filename.split(',')[-1]
+    file_name = f'{title.replace(" ", "_")}.{file_extension}'
+
+    res = supabase.storage.from_(SUPABASE_BUCKET).upload(file_name, cotents)
+
+    if res.status_code >= 400:
+        message = 'Error uploading video'
+
+    else: 
+        message = 'Video uploaded successfully.'
+
+    return templates.TemplateResponse('upload.html', {'request': request, 'message': message})
